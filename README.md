@@ -1,6 +1,6 @@
 # MCP Attack Server
 
-A starter Python FastAPI server for handling Anthropic MCP (Message Control Protocol) requests.
+A starter Python FastAPI server for handling Anthropic MCP (Model Context Protocol) requests.
 
 ## Features
 
