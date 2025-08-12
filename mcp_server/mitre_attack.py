@@ -2,7 +2,7 @@ import os
 import json
 import requests
 from typing import List, Dict, Any
-from stix2 import MemoryStore
+from stix2 import MemoryStore, Filter
 
 MITRE_BUNDLE_URL = "https://raw.githubusercontent.com/mitre/cti/master/enterprise-attack/enterprise-attack.json"
 ATTACK_BUNDLE_PATH = os.getenv("ATTACK_BUNDLE_PATH", "data/enterprise-attack.json")
@@ -15,6 +15,12 @@ def download_bundle(bundle_path: str = ATTACK_BUNDLE_PATH, bundle_url: str = MIT
     with open(bundle_path, "wb") as f:
         f.write(resp.content)
     print(f"Downloaded and saved MITRE ATT&CK bundle to {bundle_path}.")
+
+def stix_to_dict(stix_obj: Any) -> Dict:
+    """Deeply converts a stix2 object to a dictionary by serializing and reloading."""
+    if not stix_obj:
+        return stix_obj
+    return json.loads(stix_obj.serialize())
 
 class MitreAttack:
     def __init__(self, bundle_path: str = ATTACK_BUNDLE_PATH):
@@ -41,35 +47,55 @@ class MitreAttack:
         self.load_bundle()
         print("MITRE ATT&CK bundle updated.")
 
-    def find_technique(self, id_or_name: str):
-        # Try by external_id (e.g., T1059)
-        results = self.store.query([
-            {"type": "attack-pattern", "external_references.external_id": id_or_name}
+    def get_bundle_version(self) -> str:
+        """
+        Retrieves the modification date of the MITRE ATT&CK Identity object in the bundle.
+        """
+        attack_identity = self.store.query([
+            Filter("type", "=", "identity"),
+            Filter("name", "=", "MITRE ATT&CK")
         ])
-        if not results:
-            # Try by name (case-insensitive)
-            results = self.store.query([
-                {"type": "attack-pattern", "name": id_or_name}
-            ])
-            if not results:
-                # Try lower-case name for fuzziness
-                for obj in self.store.query([{"type": "attack-pattern"}]):
-                    if obj.get("name", "").lower() == id_or_name.lower():
-                        results = [obj]
-                        break
-        return results[0] if results else None
+        if attack_identity:
+            return attack_identity[0].get("modified", "Unknown")
+        return "Unknown"
+
+    def find_technique(self, id_or_name: str):
+        """
+        Finds a technique by its external ID or name.
+        Note: Iterates for external_id because direct filtering is complex.
+        """
+        all_techniques = self.store.query([Filter("type", "=", "attack-pattern")])
+
+        # Try by external_id (e.g., T1059) by iterating
+        for tech in all_techniques:
+            if tech.get('external_references'):
+                for ext_ref in tech['external_references']:
+                    if ext_ref.get('source_name') == 'mitre-attack' and ext_ref.get('external_id') == id_or_name:
+                        return tech
+
+        # Try by name (case-insensitive)
+        for tech in all_techniques:
+            if tech.get("name", "").lower() == id_or_name.lower():
+                return tech
+
+        return None
 
     def get_related_objects(self, technique_obj) -> List[Dict[str, Any]]:
         related_objects = []
         technique_id = technique_obj["id"]
-        # Find all relationships where this technique is source or target
-        relationships = self.store.query([
-            {"type": "relationship",
-             "$or": [
-                 {"source_ref": technique_id},
-                 {"target_ref": technique_id}
-             ]}
+
+        source_rels = self.store.query([
+            Filter("type", "=", "relationship"),
+            Filter("source_ref", "=", technique_id)
         ])
+        target_rels = self.store.query([
+            Filter("type", "=", "relationship"),
+            Filter("target_ref", "=", technique_id)
+        ])
+
+        all_rels = {rel['id']: rel for rel in source_rels + target_rels}
+        relationships = [stix_to_dict(r) for r in all_rels.values()]
+
         seen_ids = {technique_id}
         for rel in relationships:
             for ref in ["source_ref", "target_ref"]:
@@ -77,7 +103,7 @@ class MitreAttack:
                 if obj_id and obj_id not in seen_ids:
                     obj = self.store.get(obj_id)
                     if obj:
-                        related_objects.append(obj)
+                        related_objects.append(stix_to_dict(obj))
                         seen_ids.add(obj_id)
         return relationships + related_objects
 
@@ -87,9 +113,33 @@ class MitreAttack:
             return {"error": f"No technique found for '{id_or_name}'"}
         related = self.get_related_objects(technique)
         return {
-            "technique": technique,
+            "technique": stix_to_dict(technique),
             "related_objects": related
         }
+
+    def get_technique_detail(self, id_or_name: str, detail: str) -> Dict[str, Any]:
+        """
+        Retrieves a specific detail from a technique object.
+        """
+        technique = self.find_technique(id_or_name)
+        if not technique:
+            return {"error": f"No technique found for '{id_or_name}'"}
+
+        detail_map = {
+            "description": "description",
+            "platforms": "x_mitre_platforms",
+            "data_sources": "x_mitre_data_sources"
+        }
+
+        field_name = detail_map.get(detail)
+        if not field_name:
+            return {"error": f"Invalid detail requested: {detail}. Supported details are: {list(detail_map.keys())}"}
+
+        value = stix_to_dict(technique).get(field_name)
+        if value is None:
+            return {"error": f"Detail '{detail}' not found in technique object."}
+
+        return {detail: value}
 
 # Singleton loader for FastAPI
 mitre_attack = MitreAttack()
