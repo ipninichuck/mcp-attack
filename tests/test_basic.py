@@ -1,6 +1,12 @@
 from fastapi.testclient import TestClient
 from mcp_server.main import app
 from unittest.mock import patch
+from mcp_server.mitre_attack import mitre_attack
+
+# The module-level singleton `mitre_attack` is already loaded by the time tests run.
+# We need to force it to use our fake bundle by changing its path and reloading.
+mitre_attack.bundle_path = "tests/fake-enterprise-attack.json"
+mitre_attack.load_bundle()
 
 client = TestClient(app)
 

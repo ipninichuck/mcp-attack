@@ -4,3 +4,5 @@ pydantic
 pydantic-settings
 requests
 stix2
+websockets
+httpx
