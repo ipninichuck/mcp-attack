@@ -11,16 +11,34 @@ A starter Python FastAPI server for handling Anthropic MCP (Model Context Protoc
 
 ## Quickstart
 
-### 1. Install dependencies
+### 1. Install and Run with pipx
+
+This project is designed to be run with `pipx`. `pipx` is a tool for installing and running Python applications in isolated environments.
+
+If you don't have `pipx` installed, you can install it via pip:
+```bash
+pip install --user pipx
+pipx ensurepath
+```
+(You may need to restart your shell for the `pipx` command to be available.)
+
+Once `pipx` is set up, you can run the server directly from this repository:
 
 ```bash
-pip install -r requirements.txt
+pipx run .
 ```
 
-### 2. Run the server
+This command temporarily installs the package in an isolated environment and runs the `mcp-server` command.
+
+Alternatively, you can install the package globally (for your user):
 
 ```bash
-python -m mcp_server
+pipx install .
+```
+
+And then run it anytime with:
+```bash
+mcp-server
 ```
 
 The server will start on `127.0.0.1:8000` by default.
@@ -104,16 +122,16 @@ mcp_server/
     handlers.py
     mitre_attack.py
     main.py
-    __main__.py
+setup.py
 requirements.txt
 README.md
 ```
 
 - `handlers.py` — defines API endpoints.
-- `main.py` — FastAPI app initialization.
+- `main.py` — FastAPI app initialization and `run()` entrypoint for the `mcp-server` command.
 - `config.py` — server configuration.
 - `mitre_attack.py` — MITRE ATT&CK STIX handling and lookup.
-- `__main__.py` — entrypoint, runs the server.
+- `setup.py` — defines the package and `mcp-server` command.
 - `requirements.txt` — Python dependencies.
 
 ## Legacy REST API

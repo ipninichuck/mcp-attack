@@ -8,4 +8,9 @@ setup(
     version="0.1.0",
     packages=find_packages(),
     install_requires=requirements,
+    entry_points={
+        "console_scripts": [
+            "mcp-server = mcp_server.main:run",
+        ],
+    },
 )
