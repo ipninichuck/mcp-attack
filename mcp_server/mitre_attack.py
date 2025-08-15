@@ -18,6 +18,8 @@ def download_bundle(bundle_path: str = ATTACK_BUNDLE_PATH, bundle_url: str = MIT
 
 def stix_to_dict(stix_obj: Any) -> Dict:
     """Deeply converts a stix2 object to a dictionary by serializing and reloading."""
+    if isinstance(stix_obj, dict):
+        return stix_obj
     if not stix_obj:
         return stix_obj
     return json.loads(stix_obj.serialize())

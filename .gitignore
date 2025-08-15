@@ -3,4 +3,4 @@ __pycache__/
 .env
 *.env
 data/
-*.egg-info/
+*.egg-info/mcp-server.log
