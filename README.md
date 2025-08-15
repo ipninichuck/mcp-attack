@@ -11,32 +11,103 @@ A starter Python FastAPI server for handling Anthropic MCP (Model Context Protoc
 
 ## Quickstart
 
-### 1. Install dependencies
+### 1. Install and Run with pipx
+
+This project is designed to be run with `pipx`. `pipx` is a tool for installing and running Python applications in isolated environments.
+
+If you don't have `pipx` installed, you can install it via pip:
+```bash
+pip install --user pipx
+pipx ensurepath
+```
+(You may need to restart your shell for the `pipx` command to be available.)
+
+Once `pipx` is set up, you can run the server directly from this repository:
 
 ```bash
-pip install -r requirements.txt
+pipx run .
 ```
 
-### 2. Run the server
+This command temporarily installs the package in an isolated environment and runs the `mcp-server` command.
+
+Alternatively, you can install the package globally (for your user):
 
 ```bash
-python -m mcp_server
+pipx install .
+```
+
+And then run it anytime with:
+```bash
+mcp-server
 ```
 
 The server will start on `127.0.0.1:8000` by default.
 
-### 3. Test the endpoint
+### 3. MCP API Usage
 
-You can send a POST request to:
+The server provides a Model Context Protocol (MCP) endpoint at `/mcp/v1/message`. This endpoint uses the JSON-RPC 2.0 protocol for communication.
 
-```
-POST http://127.0.0.1:8000/mcp/v1/message
-Content-Type: application/json
+You can interact with it by sending `POST` requests with a JSON-RPC payload.
 
-{
-  "example": "payload"
-}
-```
+#### Available Methods
+
+The server supports the following methods, which can be discovered by calling the `initialize` method.
+
+##### `initialize`
+
+Discovers the capabilities of the server.
+- **Params:** None
+- **Example Request:**
+    ```bash
+    curl -X POST http://127.0.0.1:8000/mcp/v1/message -H "Content-Type: application/json" -d '{
+      "jsonrpc": "2.0", "method": "initialize", "id": "init-1"
+    }'
+    ```
+
+##### `mitre/getTechnique`
+
+Retrieves a full technique object and all its related STIX objects.
+- **Params:** `{"id_or_name": "<technique_id_or_name>"}`
+- **Example Request:**
+    ```bash
+    curl -X POST http://127.0.0.1:8000/mcp/v1/message -H "Content-Type: application/json" -d '{
+      "jsonrpc": "2.0", "method": "mitre/getTechnique", "params": {"id_or_name": "T1059"}, "id": "get-tech-1"
+    }'
+    ```
+
+##### `mitre/getTechniqueDetail`
+
+Retrieves a specific detail from a technique object.
+- **Params:** `{"id_or_name": "<technique_id>", "detail": "<detail_name>"}`
+- **Supported Details:** `description`, `platforms`, `data_sources`
+- **Example Request:**
+    ```bash
+    curl -X POST http://127.0.0.1:8000/mcp/v1/message -H "Content-Type: application/json" -d '{
+      "jsonrpc": "2.0", "method": "mitre/getTechniqueDetail", "params": {"id_or_name": "T1059", "detail": "platforms"}, "id": "get-detail-1"
+    }'
+    ```
+
+##### `mitre/getVersion`
+
+Returns the version of the currently loaded ATT&CK data bundle (based on its modification date).
+- **Params:** None
+- **Example Request:**
+    ```bash
+    curl -X POST http://127.0.0.1:8000/mcp/v1/message -H "Content-Type: application/json" -d '{
+      "jsonrpc": "2.0", "method": "mitre/getVersion", "id": "get-version-1"
+    }'
+    ```
+
+##### `mitre/updateBundle`
+
+Triggers a redownload of the ATT&CK data bundle from the source.
+- **Params:** None
+- **Example Request:**
+    ```bash
+    curl -X POST http://127.0.0.1:8000/mcp/v1/message -H "Content-Type: application/json" -d '{
+      "jsonrpc": "2.0", "method": "mitre/updateBundle", "id": "update-1"
+    }'
+    ```
 
 ### 4. Configuration
 
@@ -51,63 +122,33 @@ mcp_server/
     handlers.py
     mitre_attack.py
     main.py
-    __main__.py
+setup.py
 requirements.txt
 README.md
 ```
 
 - `handlers.py` — defines API endpoints.
-- `main.py` — FastAPI app initialization.
+- `main.py` — FastAPI app initialization and `run()` entrypoint for the `mcp-server` command.
 - `config.py` — server configuration.
 - `mitre_attack.py` — MITRE ATT&CK STIX handling and lookup.
-- `__main__.py` — entrypoint, runs the server.
+- `setup.py` — defines the package and `mcp-server` command.
 - `requirements.txt` — Python dependencies.
 
-## MITRE ATT&CK Lookup
+## Legacy REST API
 
-### Data Setup
-
-On server startup, the server checks for the MITRE ATT&CK Enterprise STIX bundle in `data/enterprise-attack.json` (by default):
-
-- If the file does **not** exist, it downloads the latest version from MITRE's official GitHub.
-- If the file **does** exist, it uses the cached file.
-- You can customize the bundle path with the `ATTACK_BUNDLE_PATH` environment variable.
-
-### API Usage
+The server also maintains a simple REST-style API for direct lookups.
 
 **Technique Lookup Endpoint:**  
 ```
 GET /mitre/technique/{id_or_name}
 ```
 
-**Returns:**  
-- The ATT&CK technique object for the given ID or name
-- All related objects (mitigations, software, groups, etc.) per STIX relationships
-
 **Bundle Update Endpoint:**  
 ```
 POST /mitre/update_bundle
 ```
-- Forces the server to download the latest ATT&CK bundle and reload it in memory.
-
-**Example Request:**  
-```
-GET /mitre/technique/T1059
-POST /mitre/update_bundle
-```
-
-**Example Response:**  
-```json
-{
-  "technique": { ... },
-  "related_objects": [ ... ]
-}
-```
 
 ## Customization
-
-- Add new endpoints in `handlers.py` or new modules.
-- Update logic for MCP handling as per Anthropic spec where marked with `TODO`.
 
 ## License
 
