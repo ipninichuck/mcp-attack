@@ -1,13 +1,14 @@
 # MCP Attack Server
 
-A starter Python FastAPI server for handling Anthropic MCP (Model Context Protocol) requests.
+This project provides a robust and extensible server that implements the Model Context Protocol (MCP). It acts as a bridge between a large language model and external knowledge sources, allowing the model to query for real-time information. This server comes pre-configured with a powerful MITRE ATT&CK lookup capability, enabling your model to access and integrate up-to-date cybersecurity threat information.
 
-## Features
+## Key Capabilities
 
-- FastAPI app structure for easy extension
-- Configurable host/port
-- Example MCP endpoint at `/mcp/v1/message`
-- MITRE ATT&CK lookup endpoint with auto-download/update
+*   **Model Context Protocol (MCP) Server:** A fully implemented FastAPI server that adheres to the JSON-RPC 2.0 based Model Context Protocol.
+*   **Extensible Handler System:** Easily add new capabilities and data sources for your model to query.
+*   **Built-in MITRE ATT&CK Integration:** Out-of-the-box support for looking up MITRE ATT&CK techniques, tactics, and associated metadata.
+*   **Automatic Data Updates:** The server will automatically download and stay current with the latest MITRE ATT&CK data.
+*   **Simple Configuration:** Easily configure the server's host, port, and other settings.
 
 ## Quickstart
 
