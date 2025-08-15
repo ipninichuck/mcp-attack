@@ -1,0 +1,27 @@
+{
+  "objects": [
+    {
+      "type": "attack-pattern",
+      "spec_version": "2.1",
+      "id": "attack-pattern--f47ac10b-58cc-4372-a567-0e02b2c3d479",
+      "created": "2024-01-01T00:00:00.000Z",
+      "modified": "2024-01-01T00:00:00.000Z",
+      "name": "Fake Technique",
+      "description": "This is a fake technique for testing.",
+      "external_references": [
+        {
+          "source_name": "mitre-attack",
+          "external_id": "T9999"
+        }
+      ],
+      "x_mitre_platforms": [
+        "Windows",
+        "Linux"
+      ],
+      "x_mitre_data_sources": [
+        "Command: Command Execution",
+        "Process: Process Creation"
+      ]
+    }
+  ]
+}
