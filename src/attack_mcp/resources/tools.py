@@ -1,14 +1,20 @@
 import json
 import collections
 import os
+import re
 from mcp.server.fastmcp import Context
 from ..server import mcp
 from ..core.graph import knowledge_base
-from ..config import DEFAULT_NAVIGATOR_VERSION, DEFAULT_LAYER_VERSION, ATTACK_DOMAIN
+from ..config import DEFAULT_NAVIGATOR_VERSION, DEFAULT_LAYER_VERSION, ATTACK_DOMAIN, OUTPUT_DIR
 
 @mcp.tool()
 def search_knowledge_base(query: str) -> str:
     """Search for ANY object in ATT&CK (Campaigns, Malware, Techniques)."""
+    
+    # SECURITY: Input Length Check (Prevent ReDoS or Memory Exhaustion)
+    if len(query) > 100:
+        return json.dumps({"error": "Query too long. Please limit search to 100 characters."})
+
     # Ensure graph is built
     if not knowledge_base.initialized: knowledge_base.build()
     
@@ -39,6 +45,11 @@ def search_knowledge_base(query: str) -> str:
 @mcp.tool()
 def explore_relationships(attack_id_or_name: str, depth: int = 2) -> str:
     """Traverses the ATT&CK graph up to a specified depth."""
+    
+    # SECURITY: Cap depth to prevent accidental large graph dumps
+    if depth > 4:
+        return json.dumps({"error": "Depth limited to maximum 4."})
+
     if not knowledge_base.initialized: knowledge_base.build()
     G = knowledge_base.G
 
@@ -114,15 +125,29 @@ def generate_navigator_layer(technique_ids: list[str], filename: str) -> str:
     if not knowledge_base.initialized: knowledge_base.build()
     
     try:
-        if not filename.endswith(".json"): filename += ".json"
+        # SECURITY: Path Traversal Prevention
         
-        # Ensure we write to a safe location (e.g. current directory)
-        output_path = os.path.abspath(filename)
+        # 1. Strip directory paths (forcing filename to be just a name, not a path)
+        safe_filename = os.path.basename(filename)
         
-       layer_dict = {
+        # 2. Whitelist allowed characters (Alphanumeric, underscore, dash, dot)
+        # This prevents shell injection or control characters
+        safe_filename = re.sub(r'[^a-zA-Z0-9_\-\.]', '', safe_filename)
+        
+        # 3. Enforce extension
+        if not safe_filename.endswith(".json"): 
+            safe_filename += ".json"
+            
+        # 4. Ensure Output Directory exists
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+        
+        # 5. Construct full safe path
+        output_path = os.path.join(OUTPUT_DIR, safe_filename)
+        
+        layer_dict = {
             "name": "MCP Generated Layer",
             "versions": {"attack": "18", "navigator": DEFAULT_NAVIGATOR_VERSION, "layer": DEFAULT_LAYER_VERSION},
-            "domain": ATTACK_DOMAIN,  # <--- THIS IS THE CRITICAL CHANGE
+            "domain": ATTACK_DOMAIN, # Configured in config.py
             "techniques": []
         }
         
@@ -165,8 +190,6 @@ def get_entity_details(entity_id: str) -> str:
         "description": node['description']
     }
 
-    # -- Logic separated for readability --
-    
     # CASE 1: Technique Logic
     if node['type'] == 'attack-pattern':
         mitigations = []
@@ -179,21 +202,56 @@ def get_entity_details(entity_id: str) -> str:
                 if src_node['type'] == 'course-of-action':
                     mitigations.append(src_node['name'])
         
-        # Detections (simplified logic for brevity, full logic preserved from original)
+        # Detections (Strategy -> Analytic -> Data Component)
         for strat_id, _, attrs in G.in_edges(stix_id, data=True):
              if attrs.get('relationship_type') == 'detects':
-                 # ... (Your complex detection logic here)
-                 # For brevity in this answer, we are keeping the logic structure 
-                 # but ensure you copy the inner loops from your original script here.
-                 pass
+                strat_node = G.nodes[strat_id]
+                if strat_node['type'] == 'x-mitre-detection-strategy':
+                    strategy_info = {
+                        "strategy_name": strat_node['name'],
+                        "analytics": []
+                    }
+                    for analytic_id in G.successors(strat_id):
+                        ana_node = G.nodes[analytic_id]
+                        edge_sa = G.get_edge_data(strat_id, analytic_id)
+                        if ana_node['type'] == 'x-mitre-analytic' and edge_sa.get('relationship_type') == 'references_analytic':
+                            raw_analytic = ana_node.get('raw', {})
+                            log_sources = []
+                            # Parse Log Source Refs
+                            if 'x_mitre_log_source_references' in raw_analytic:
+                                for ref in raw_analytic['x_mitre_log_source_references']:
+                                    dc_ref = ref.get('x_mitre_data_component_ref')
+                                    dc_name = "Unknown"
+                                    if dc_ref and dc_ref in G:
+                                        dc_name = G.nodes[dc_ref]['name']
+                                    log_sources.append({
+                                        "data_component": dc_name,
+                                        "log_source": ref.get('name')
+                                    })
+                            strategy_info["analytics"].append({
+                                "analytic_name": ana_node['name'],
+                                "log_sources": log_sources
+                            })
+                    detections.append(strategy_info)
 
         response["mitigations"] = mitigations
-        # response["detections"] = ... 
+        response["detections"] = detections
 
     # CASE 2: Intrusion Set Logic
     elif node['type'] == 'intrusion-set':
         software = []
-        # ... (Copy your original software aggregation logic here)
+        unique_software = set()
+
+        # Direct Software use
+        for neighbor in G.successors(stix_id):
+            edge_data = G.get_edge_data(stix_id, neighbor)
+            if edge_data.get('relationship_type') == 'uses':
+                tgt_node = G.nodes[neighbor]
+                if tgt_node['type'] in ['malware', 'tool']:
+                    if tgt_node['name'] not in unique_software:
+                        software.append({"name": tgt_node['name'], "type": tgt_node['type'], "relation": "direct"})
+                        unique_software.add(tgt_node['name'])
+        
         response['software'] = software
 
     return json.dumps(response)
