@@ -1,8 +1,8 @@
 import requests
 import networkx as nx
-import collections
 import logging
-from ..config import ATTACK_STIX_URL
+import hashlib
+from ..config import ATTACK_STIX_URL, ATTACK_STIX_HASH
 
 logger = logging.getLogger(__name__)
 
@@ -13,16 +13,47 @@ class AttackGraph:
         self.initialized = False
 
     def build(self):
+        """Downloads STIX data (with security checks) and builds the graph."""
         if self.initialized:
             return
             
-        print("⏳ Downloading ATT&CK Data...")
-        response = requests.get(ATTACK_STIX_URL)
-        response.raise_for_status()
+        print(f"⏳ Downloading ATT&CK Data from: {ATTACK_STIX_URL} ...")
+        
+        # SECURITY 1: Timeouts
+        # Prevent the server from hanging indefinitely if the connection stalls.
+        try:
+            response = requests.get(ATTACK_STIX_URL, timeout=30)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            raise RuntimeError(f"Failed to download ATT&CK data: {e}")
+
+        # SECURITY 2: Supply Chain Integrity (Hash Verification)
+        # We verify the raw bytes before processing to ensure no tampering.
+        file_content = response.content
+        computed_hash = hashlib.sha256(file_content).hexdigest()
+
+        if ATTACK_STIX_HASH:
+            # Production Mode: Strict enforcement
+            if computed_hash != ATTACK_STIX_HASH:
+                raise ValueError(
+                    f"🚨 SECURITY ALERT: Hash Mismatch!\n"
+                    f"Expected: {ATTACK_STIX_HASH}\n"
+                    f"Received: {computed_hash}\n"
+                    f"The file may have been tampered with or corrupted. Aborting."
+                )
+        else:
+            # Dev Mode: Trust On First Use (TOFU)
+            print("-" * 60)
+            print(f"⚠️  SECURITY NOTICE: Supply Chain Verification Disabled")
+            print(f"   Detected Hash: {computed_hash}")
+            print(f"   Action: Copy this hash into 'config.py' to secure your server.")
+            print("-" * 60)
+
+        # Parse JSON and build graph
         data = response.json()
         all_objects = data.get('objects', [])
 
-        print("🏗️ Building NetworkX Graph...")
+        print("🏗️  Building NetworkX Graph...")
         
         # --- PASS 1: NODES ---
         for obj in all_objects:
