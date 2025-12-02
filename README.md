@@ -11,6 +11,7 @@ This server ingests the STIX 2.1 data for ATT&CK, builds an in-memory NetworkX g
 * **Knowledge Graph:** Queries a structured graph of Techniques, Groups, Mitigation, and Data Components.
 * **Deep Relationship Traversal:** Trace links from Techniques → Detection Strategies → Analytics → Data Components.
 * **Navigator Integration:** Generate valid `layer.json` files on the fly based on conversation context.
+* **Secure Supply Chain:** Verifies the SHA256 hash of MITRE data to prevent tampering.
 * **Fast Execution:** Uses `uv` for dependency management and caching.
 
 ## 🛠️ Tools Available
@@ -47,34 +48,46 @@ Run the server entry point to ensure the graph builds correctly.
 uv run python -m attack_mcp.main
 ```
 
-*Note: The first run will download the ATT\&CK STIX data. Subsequent runs will be faster.*
+*Note: The first run will download the ATT\&CK STIX data.*
 
-## ⚙️ Configuration (Switching Matrices)
+## ⚙️ Configuration
 
-By default, this server loads the **Enterprise ATT\&CK** matrix. You can switch to **Mobile** or **ICS** by editing the configuration file.
+The file `src/attack_mcp/config.py` controls which Matrix is loaded and manages security settings.
 
-1.  Open `src/attack_mcp/config.py`.
-2.  Update the `ATTACK_STIX_URL` and `ATTACK_DOMAIN` variables.
+### Switching Matrices
 
-**Example Configuration for Mobile:**
+By default, the server loads **Enterprise ATT\&CK**. To switch to **Mobile** or **ICS**, open `config.py` and comment/uncomment the appropriate block:
 
 ```python
-# src/attack_mcp/config.py
+# Example: Switch to Mobile
+# ATTACK_STIX_URL = ".../enterprise-attack.json"  <-- Comment this out
+# ATTACK_DOMAIN = "enterprise-attack"
 
-# Mobile ATT&CK
-ATTACK_STIX_URL = "[https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/mobile-attack/mobile-attack.json](https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/mobile-attack/mobile-attack.json)"
+ATTACK_STIX_URL = ".../mobile-attack.json"        <-- Uncomment this
 ATTACK_DOMAIN = "mobile-attack"
 ```
 
-**Example Configuration for ICS:**
+## 🔒 Security Best Practices
 
-```python
-# src/attack_mcp/config.py
+### 1\. Supply Chain Integrity (Hash Verification)
 
-# ICS ATT&CK
-ATTACK_STIX_URL = "[https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/ics-attack/ics-attack.json](https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/ics-attack/ics-attack.json)"
-ATTACK_DOMAIN = "ics-attack"
-```
+To prevent tampering or data corruption, you should "pin" the hash of the STIX file.
+
+1.  **Dev Mode (Trust On First Use):**
+    Set `ATTACK_STIX_HASH = None` in `config.py`. Run the server. It will print the detected SHA256 hash of the downloaded file to the console.
+
+2.  **Secure Mode:**
+    Copy that hash and paste it into `config.py`:
+
+    ```python
+    ATTACK_STIX_HASH = "59b2..." # Paste actual hash here
+    ```
+
+    Now, the server will strictly validate the file integrity on every launch.
+
+### 2\. File System Safety
+
+All generated files (e.g., Navigator Layers) are restricted to the `outputs/` directory. The server cleans filenames to prevent Path Traversal attacks (e.g., `../../etc/passwd`).
 
 ## 📂 Project Structure
 
@@ -86,7 +99,7 @@ attack-mcp-server/
 │   └── attack_mcp/
 │       ├── main.py      # Entry point
 │       ├── server.py    # MCP Server Initialization
-│       ├── config.py    # Configuration constants (Edit this to change Matrix)
+│       ├── config.py    # Matrix Selection & Security Config
 │       ├── core/        # Logic for STIX/NetworkX
 │       └── resources/   # Tool Definitions
 ```
