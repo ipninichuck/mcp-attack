@@ -4,7 +4,7 @@ import os
 from mcp.server.fastmcp import Context
 from ..server import mcp
 from ..core.graph import knowledge_base
-from ..config import DEFAULT_NAVIGATOR_VERSION, DEFAULT_LAYER_VERSION
+from ..config import DEFAULT_NAVIGATOR_VERSION, DEFAULT_LAYER_VERSION, ATTACK_DOMAIN
 
 @mcp.tool()
 def search_knowledge_base(query: str) -> str:
@@ -119,10 +119,10 @@ def generate_navigator_layer(technique_ids: list[str], filename: str) -> str:
         # Ensure we write to a safe location (e.g. current directory)
         output_path = os.path.abspath(filename)
         
-        layer_dict = {
+       layer_dict = {
             "name": "MCP Generated Layer",
             "versions": {"attack": "18", "navigator": DEFAULT_NAVIGATOR_VERSION, "layer": DEFAULT_LAYER_VERSION},
-            "domain": "enterprise-attack",
+            "domain": ATTACK_DOMAIN,  # <--- THIS IS THE CRITICAL CHANGE
             "techniques": []
         }
         
