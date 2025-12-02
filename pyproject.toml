@@ -1,0 +1,14 @@
+[project]
+name = "attack-mcp-server"
+version = "0.1.0"
+description = "MCP Server for MITRE ATT&CK"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp[cli]",
+    "requests",
+    "networkx",
+    "pydantic",
+]
+
+[tool.uv]
+package = true
